@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "649826242719",
+    "firebase_url": "https://smart-home-system-d7702-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "smart-home-system-d7702",
+    "storage_bucket": "smart-home-system-d7702.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:649826242719:android:0ba221ccabc453398152aa",
+        "android_client_info": {
+          "package_name": "com.example.smarthomesimulator"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjOLnS7ZZ8kwpBYjeBUuoqEysOgU8ePH4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

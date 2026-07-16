@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Home Simulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-a"></div>
+    <div class="bg-shape bg-shape-b"></div>
+
+    <main class="shell">
+      <section class="hero panel">
+        <div>
+          <p class="eyebrow">House layout simulator</p>
+          <h1>Floor and Room Device Console</h1>
+          <p class="lede">
+            Clear identification for 1st floor and 2nd floor, plus inside areas like entrance, living room, kitchen, bedrooms, and study.
+          </p>
+        </div>
+        <div class="summary-grid" id="summaryCards"></div>
+      </section>
+
+      <section class="toolbar panel">
+        <div class="toolbar-block">
+          <p class="label">Select floor</p>
+          <div class="pill-row" id="floorTabs" aria-label="Floors"></div>
+        </div>
+        <div class="toolbar-block">
+          <p class="label">Select inside area</p>
+          <div class="pill-row" id="roomTabs" aria-label="Rooms"></div>
+        </div>
+      </section>
+
+      <section class="main-grid">
+        <section class="panel devices-panel">
+          <div class="section-head split">
+            <div>
+              <p class="kicker">Visible devices</p>
+              <h2 id="deviceTitle">1st Floor</h2>
+            </div>
+            <p class="muted" id="deviceCount">0 devices</p>
+          </div>
+          <div id="roomSections" class="room-sections"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="deviceCardTemplate">
+      <article class="device-card">
+        <div class="card-top">
+          <div class="device-badge" data-role="badge">D</div>
+          <div>
+            <p class="device-type" data-role="type">device</p>
+            <h3 data-role="name">Device Name</h3>
+            <p class="muted" data-role="path">Floor / Room</p>
+          </div>
+          <span class="status-pill" data-role="status">OFF</span>
+        </div>
+
+        <div class="card-meta">
+          <span class="chip" data-role="idChip">ID</span>
+          <span class="chip" data-role="roomChip">Room</span>
+        </div>
+
+        <div class="device-details" data-role="details"></div>
+        <div class="channel-list" data-role="channels"></div>
+
+        <div class="device-actions">
+          <button type="button" class="btn primary" data-action="toggle">Toggle</button>
+          <button type="button" class="btn" data-action="error">Error</button>
+          <button type="button" class="btn" data-action="disconnect">Disconnect</button>
+          <button type="button" class="btn ghost" data-action="reset">Reset</button>
+        </div>
+      </article>
+    </template>
+
+    <!-- <script src="app.js"></script> -->
+    <!-- <script type="module" src="app.js"></script> -->
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
