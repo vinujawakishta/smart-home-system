@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarthomesimulator.ui.theme.SmartHomeSimulatorTheme
 import com.google.firebase.database.*
+import kotlinx.coroutines.delay
 
 /* =========================================================================
    DATA MODEL
@@ -34,7 +35,9 @@ data class Device(
     val roomId: String = "",
     val state: String = "off",
     val details: List<String> = emptyList(),
-    val channels: List<Boolean>? = null
+    val channels: List<Boolean>? = null,
+    val maxOnDuration: Long? = null, // seconds
+    val turnedOnAt: Long? = null     // epoch millis
 )
 
 data class Room(val id: String, val label: String)
@@ -107,7 +110,8 @@ class MainActivity : ComponentActivity() {
                         devices = deviceList,
                         modifier = Modifier.padding(innerPadding),
                         onToggle = { device -> toggleDevice(device) },
-                        onToggleChannel = { device, index -> toggleChannel(device, index) }
+                        onToggleChannel = { device, index -> toggleChannel(device, index) },
+                        onIronOverdue = { device -> forceOffIron(device) }
                     )
                 }
             }
@@ -118,8 +122,13 @@ class MainActivity : ComponentActivity() {
     // and updates deviceList, which recomposes the UI. Same pattern as the
     // web simulator: no local state faking.
     private fun toggleDevice(device: Device) {
-        val newState = if (device.state == "on") "off" else "on"
+        val turningOn = device.state != "on"
+        val newState = if (turningOn) "on" else "off"
         devicesRef.child(device.id).child("state").setValue(newState)
+        if (device.type == "iron") {
+            devicesRef.child(device.id).child("turnedOnAt")
+                .setValue(if (turningOn) System.currentTimeMillis() else null)
+        }
     }
 
     private fun toggleChannel(device: Device, index: Int) {
@@ -129,6 +138,25 @@ class MainActivity : ComponentActivity() {
         val anyOn = updated.any { it }
         devicesRef.child(device.id).child("channels").setValue(updated)
         devicesRef.child(device.id).child("state").setValue(if (anyOn) "on" else "off")
+    }
+
+    // Client-side safety fallback: if this app is open and an iron's timer
+    // hits zero, force it off directly — same write the eventual backend
+    // Cloud Function/Action will make. This does NOT run when the app is
+    // closed; only the deployed scheduled job guarantees that. Kept as a
+    // clearly separate function so it's obvious which guarantee is which.
+    private fun forceOffIron(device: Device) {
+        devicesRef.child(device.id).child("state").setValue("off")
+        devicesRef.child(device.id).child("turnedOnAt").setValue(null)
+        val alertRef = devicesRef.root.child("alerts").push()
+        alertRef.setValue(
+            mapOf(
+                "deviceId" to device.id,
+                "deviceName" to device.name,
+                "message" to "Safety cutoff (client-side) — exceeded ${device.maxOnDuration}s max on-duration",
+                "timestamp" to System.currentTimeMillis()
+            )
+        )
     }
 }
 
@@ -141,7 +169,8 @@ fun HomeScreen(
     devices: List<Device>,
     modifier: Modifier = Modifier,
     onToggle: (Device) -> Unit,
-    onToggleChannel: (Device, Int) -> Unit
+    onToggleChannel: (Device, Int) -> Unit,
+    onIronOverdue: (Device) -> Unit
 ) {
     var activeFloor by remember { mutableStateOf(FLOOR_PLAN.first().id) }
     var activeRoom by remember { mutableStateOf("all") }
@@ -196,7 +225,7 @@ fun HomeScreen(
         // --- Summary row ---
         SummaryRow(floorDevices = floorDevices, visibleDevices = visibleDevices)
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         // --- Device list, grouped by room ---
         if (devices.isEmpty()) {
@@ -237,7 +266,8 @@ fun HomeScreen(
                     DeviceCard(
                         device = device,
                         onToggle = { onToggle(device) },
-                        onToggleChannel = { index -> onToggleChannel(device, index) }
+                        onToggleChannel = { index -> onToggleChannel(device, index) },
+                        onIronOverdue = { onIronOverdue(device) }
                     )
                 }
             }
@@ -254,16 +284,16 @@ fun SummaryRow(floorDevices: List<Device>, visibleDevices: List<Device>) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MetricChip(label = "On this floor", value = floorDevices.size)
-        MetricChip(label = "Visible", value = visibleDevices.size)
-        MetricChip(label = "Powered ON", value = powered)
-        MetricChip(label = "Alerts", value = alerts)
+        MetricChip(label = "On this floor", value = floorDevices.size, modifier = Modifier.weight(1f))
+        MetricChip(label = "Visible", value = visibleDevices.size, modifier = Modifier.weight(1f))
+        MetricChip(label = "Powered ON", value = powered, modifier = Modifier.weight(1f))
+        MetricChip(label = "Alerts", value = alerts, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-fun RowScope.MetricChip(label: String, value: Int) {
-    Card(modifier = Modifier.weight(1f)) {
+fun MetricChip(label: String, value: Int, modifier: Modifier = Modifier) {
+    Card(modifier = modifier) {
         Column(modifier = Modifier.padding(8.dp)) {
             Text("$value", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Text(label, style = MaterialTheme.typography.labelSmall)
@@ -276,7 +306,7 @@ fun RowScope.MetricChip(label: String, value: Int) {
    ========================================================================= */
 
 @Composable
-fun DeviceCard(device: Device, onToggle: () -> Unit, onToggleChannel: (Int) -> Unit) {
+fun DeviceCard(device: Device, onToggle: () -> Unit, onToggleChannel: (Int) -> Unit, onIronOverdue: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -302,7 +332,7 @@ fun DeviceCard(device: Device, onToggle: () -> Unit, onToggleChannel: (Int) -> U
             when (device.type) {
                 "multiswitch" -> MultiSwitchBody(device, onToggleChannel)
                 "camera" -> CameraBody(device)
-                "iron" -> IronBody(device, onToggle)
+                "iron" -> IronBody(device, onToggle, onIronOverdue)
                 else -> SimpleToggleBody(device, onToggle) // outlet, bulb
             }
 
@@ -346,17 +376,53 @@ fun SimpleToggleBody(device: Device, onToggle: () -> Unit) {
 }
 
 @Composable
-fun IronBody(device: Device, onToggle: () -> Unit) {
+fun IronBody(device: Device, onToggle: () -> Unit, onOverdue: () -> Unit) {
     Column {
         SimpleToggleBody(device, onToggle)
-        // maxOnDuration / turnedOnAt aren't in the current seed data yet —
-        // once the safety-cutoff Cloud Function is built, those fields get
-        // added to the schema and this section shows live time remaining.
-        Text(
-            "Safety timer info comes from Firebase once the cutoff logic is added.",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+
+        if (device.state == "on" && device.turnedOnAt != null && device.maxOnDuration != null) {
+            // Ticks once a second so the countdown actually moves, instead
+            // of freezing at whatever value it had when Firebase last pushed.
+            var nowMillis by remember(device.turnedOnAt) { mutableStateOf(System.currentTimeMillis()) }
+            var overdueFired by remember(device.turnedOnAt) { mutableStateOf(false) }
+
+            LaunchedEffect(device.turnedOnAt) {
+                while (true) {
+                    nowMillis = System.currentTimeMillis()
+                    delay(1000)
+                }
+            }
+
+            val elapsedSeconds = (nowMillis - device.turnedOnAt) / 1000
+            val remaining = (device.maxOnDuration - elapsedSeconds).coerceAtLeast(0)
+            val minutes = remaining / 60
+            val seconds = remaining % 60
+
+            // Client-side fallback: only fires once, only while this screen
+            // is open. The real guarantee ("works even if app is closed")
+            // still needs the scheduled backend job deployed separately.
+            LaunchedEffect(remaining) {
+                if (remaining == 0L && !overdueFired) {
+                    overdueFired = true
+                    onOverdue()
+                }
+            }
+
+            Text(
+                text = "Auto safety cutoff in %02d:%02d".format(minutes, seconds),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (remaining <= 30)
+                    MaterialTheme.colorScheme.error
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (device.maxOnDuration != null) {
+            Text(
+                "Max on-duration: ${device.maxOnDuration}s",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
