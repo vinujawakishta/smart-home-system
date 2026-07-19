@@ -5,24 +5,30 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Settings
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -36,6 +42,8 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.graphics.Paint as AndroidPaint
+import android.graphics.Color as AndroidColor
 
 /* =========================================================================
    DATA MODEL
@@ -102,6 +110,42 @@ val FLOOR_PLAN = listOf(
 fun findFloor(floorId: String) = FLOOR_PLAN.find { it.id == floorId }
 fun findRoomLabel(floorId: String, roomId: String) =
     findFloor(floorId)?.rooms?.find { it.id == roomId }?.label ?: roomId
+
+/* =========================================================================
+   ABSTRACT GRID LAYOUT
+   -------------------------------------------------------------------------
+   Per the spec: "an abstract(simple) grid mapping overlaid onto specific
+   floor layouts" — not a real architectural floor plan. Each room occupies
+   a rectangle of grid cells; devices in that room are drawn as small dots
+   inside it. Both floors use the same 6x4 grid.
+   ========================================================================= */
+
+const val GRID_COLS = 6
+const val GRID_ROWS = 4
+
+data class RoomLayout(val roomId: String, val colStart: Int, val rowStart: Int, val colSpan: Int, val rowSpan: Int)
+
+val FLOOR1_LAYOUT = listOf(
+    RoomLayout("entrance", 0, 0, 2, 1),
+    RoomLayout("stairs", 0, 1, 2, 1),
+    RoomLayout("bath1", 0, 2, 2, 2),
+    RoomLayout("living", 2, 0, 2, 4),
+    RoomLayout("kitchen", 4, 0, 2, 4),
+)
+
+val FLOOR2_LAYOUT = listOf(
+    RoomLayout("balcony", 0, 0, 2, 2),
+    RoomLayout("bath2", 0, 2, 2, 2),
+    RoomLayout("master", 2, 0, 2, 4),
+    RoomLayout("bed2", 4, 0, 2, 2),
+    RoomLayout("study", 4, 2, 2, 2),
+)
+
+fun layoutForFloor(floorId: String): List<RoomLayout> = when (floorId) {
+    "floor1" -> FLOOR1_LAYOUT
+    "floor2" -> FLOOR2_LAYOUT
+    else -> emptyList()
+}
 
 /* =========================================================================
    ACTIVITY
@@ -173,15 +217,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             SmartHomeSimulatorTheme {
                 val navController = rememberNavController()
+                val backStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = backStackEntry?.destination?.route
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    bottomBar = { AppBottomBar(navController) }
+                    bottomBar = {
+                        if (currentRoute != "welcome") {
+                            AppBottomBar(navController)
+                        }
+                    }
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "home",
+                        startDestination = "welcome",
                         modifier = Modifier.padding(innerPadding)
                     ) {
+                        composable("welcome") {
+                            WelcomeScreen(
+                                onEnter = {
+                                    navController.navigate("home") {
+                                        popUpTo("welcome") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
                         composable("home") {
                             HomeScreen(
                                 devices = deviceList,
@@ -194,8 +254,13 @@ class MainActivity : ComponentActivity() {
                         composable("reports") {
                             ReportsScreen(devices = deviceList, events = eventList, alerts = alertList)
                         }
+                        composable("floorplan") {
+                            FloorPlanScreen(
+                                devices = deviceList,
+                                onDeviceClick = { device -> navController.navigate("device/${device.id}") }
+                            )
+                        }
                         composable("alerts") { AlertsScreen(alerts = alertList) }
-                        composable("settings") { SettingsScreenPlaceholder() }
                         composable(
                             route = "device/{deviceId}",
                             arguments = listOf(navArgument("deviceId") { type = NavType.StringType })
@@ -294,9 +359,9 @@ private data class NavTab(val route: String, val label: String, val icon: androi
 
 private val navTabs = listOf(
     NavTab("home", "Home", Icons.Filled.Home),
+    NavTab("floorplan", "Floor Plan", Icons.Filled.Map),
     NavTab("reports", "Reports", Icons.Filled.List),
     NavTab("alerts", "Alerts", Icons.Filled.Warning),
-    NavTab("settings", "Settings", Icons.Filled.Settings),
 )
 
 @Composable
@@ -511,16 +576,44 @@ fun formatDuration(millis: Long): String {
     return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
 
-@Composable
-fun SettingsScreenPlaceholder() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Settings screen — coming next")
-    }
-}
-
 /* =========================================================================
    SCREEN: floor tabs + room filter + grouped device list
    ========================================================================= */
+
+/* =========================================================================
+   WELCOME SCREEN — shown once on launch
+   ========================================================================= */
+
+@Composable
+fun WelcomeScreen(onEnter: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                "Smart Home System",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "Monitor and control every device across your home, synced live.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            Button(onClick = onEnter) {
+                Text("Enter Dashboard")
+            }
+        }
+    }
+}
 
 @Composable
 fun HomeScreen(
@@ -658,6 +751,157 @@ fun RowScope.MetricChip(label: String, value: Int) {
             Text("$value", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             Text(label, style = MaterialTheme.typography.labelSmall)
         }
+    }
+}
+
+/* =========================================================================
+   FLOOR PLAN SCREEN — abstract grid mapping with device markers
+   ========================================================================= */
+
+@Composable
+fun FloorPlanScreen(devices: List<Device>, onDeviceClick: (Device) -> Unit) {
+    var activeFloor by remember { mutableStateOf(FLOOR_PLAN.first().id) }
+    val layout = layoutForFloor(activeFloor)
+    val floorDevices = devices.filter { it.floorId == activeFloor }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FLOOR_PLAN.forEach { f ->
+                FilterChip(
+                    selected = f.id == activeFloor,
+                    onClick = { activeFloor = f.id },
+                    label = { Text(f.label) }
+                )
+            }
+        }
+
+        Text(
+            "Tap a marker to open that device",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+                .aspectRatio(GRID_COLS.toFloat() / GRID_ROWS.toFloat())
+        ) {
+            val widthDp = maxWidth
+            val heightDp = maxHeight
+
+            // --- Grid + room rectangles, drawn once as a background ---
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val cellW = size.width / GRID_COLS
+                val cellH = size.height / GRID_ROWS
+
+                layout.forEach { room ->
+                    val left = room.colStart * cellW
+                    val top = room.rowStart * cellH
+                    val w = room.colSpan * cellW
+                    val h = room.rowSpan * cellH
+
+                    drawRect(
+                        color = Color(0xFFEFEFEF),
+                        topLeft = Offset(left, top),
+                        size = androidx.compose.ui.geometry.Size(w, h)
+                    )
+                    drawRect(
+                        color = Color(0xFFBBBBBB),
+                        topLeft = Offset(left, top),
+                        size = androidx.compose.ui.geometry.Size(w, h),
+                        style = Stroke(width = 2f)
+                    )
+
+                    drawContext.canvas.nativeCanvas.drawText(
+                        findRoomLabel(activeFloor, room.roomId),
+                        left + 8f,
+                        top + 26f,
+                        AndroidPaint().apply {
+                            color = AndroidColor.DKGRAY
+                            textSize = 26f
+                            isAntiAlias = true
+                        }
+                    )
+                }
+
+                for (c in 0..GRID_COLS) {
+                    drawLine(
+                        color = Color(0x22000000),
+                        start = Offset(c * cellW, 0f),
+                        end = Offset(c * cellW, size.height),
+                        strokeWidth = 1f
+                    )
+                }
+                for (r in 0..GRID_ROWS) {
+                    drawLine(
+                        color = Color(0x22000000),
+                        start = Offset(0f, r * cellH),
+                        end = Offset(size.width, r * cellH),
+                        strokeWidth = 1f
+                    )
+                }
+            }
+
+            // --- Device markers, real composables so they're tappable ---
+            layout.forEach { room ->
+                val roomDevices = floorDevices.filter { it.roomId == room.roomId }
+                val roomLeftDp = widthDp * (room.colStart.toFloat() / GRID_COLS)
+                val roomTopDp = heightDp * (room.rowStart.toFloat() / GRID_ROWS)
+
+                roomDevices.forEachIndexed { index, device ->
+                    val markersPerRow = 3
+                    val spacing = 20.dp
+                    val col = index % markersPerRow
+                    val rowIdx = index / markersPerRow
+                    val markerX = roomLeftDp + 10.dp + (spacing * col)
+                    val markerY = roomTopDp + 34.dp + (spacing * rowIdx)
+
+                    val markerColor = when (device.state) {
+                        "on" -> Color(0xFF3FA96A)
+                        "error" -> Color(0xFFE2564F)
+                        "disconnected" -> Color(0xFFD9A438)
+                        else -> Color(0xFF9E9E9E)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .offset(x = markerX, y = markerY)
+                            .size(16.dp)
+                            .background(markerColor, shape = CircleShape)
+                            .clickable { onDeviceClick(device) }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            LegendDot(color = Color(0xFF3FA96A), label = "ON")
+            LegendDot(color = Color(0xFF9E9E9E), label = "OFF")
+            LegendDot(color = Color(0xFFE2564F), label = "ERROR")
+            LegendDot(color = Color(0xFFD9A438), label = "DISCONNECTED")
+        }
+    }
+}
+
+@Composable
+fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall)
     }
 }
 
