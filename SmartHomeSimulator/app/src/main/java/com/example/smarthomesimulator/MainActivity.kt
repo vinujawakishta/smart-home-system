@@ -23,7 +23,10 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -107,7 +110,7 @@ val FLOOR_PLAN = listOf(
     ),
 )
 
-fun findFloor(floorId: String) = FLOOR_PLAN.find { it.id == floorId }
+fun findFloor(floorId: String) = dynamicFloors.find { it.id == floorId }
 fun findRoomLabel(floorId: String, roomId: String) =
     findFloor(floorId)?.rooms?.find { it.id == roomId }?.label ?: roomId
 
@@ -141,11 +144,14 @@ val FLOOR2_LAYOUT = listOf(
     RoomLayout("study", 4, 2, 2, 2),
 )
 
-fun layoutForFloor(floorId: String): List<RoomLayout> = when (floorId) {
-    "floor1" -> FLOOR1_LAYOUT
-    "floor2" -> FLOOR2_LAYOUT
-    else -> emptyList()
+// Mutable floor/room structure to support adding layouts dynamically.
+val dynamicFloors = mutableStateListOf<Floor>().apply { addAll(FLOOR_PLAN) }
+val dynamicLayouts = mutableStateMapOf<String, List<RoomLayout>>().apply {
+    put("floor1", FLOOR1_LAYOUT)
+    put("floor2", FLOOR2_LAYOUT)
 }
+
+fun layoutForFloor(floorId: String): List<RoomLayout> = dynamicLayouts[floorId] ?: emptyList()
 
 /* =========================================================================
    ACTIVITY
@@ -156,6 +162,7 @@ class MainActivity : ComponentActivity() {
     private val deviceList = mutableStateListOf<Device>()
     private val alertList = mutableStateListOf<Alert>()
     private val eventList = mutableStateListOf<DeviceEvent>()
+    private var initialLoadComplete by mutableStateOf(false)
     private lateinit var devicesRef: DatabaseReference
     private lateinit var alertsRef: DatabaseReference
     private lateinit var eventsRef: DatabaseReference
@@ -175,8 +182,12 @@ class MainActivity : ComponentActivity() {
                 val updated = snapshot.children.mapNotNull { child ->
                     child.getValue(Device::class.java)?.copy(id = child.key ?: "")
                 }
-                deviceList.clear()
-                deviceList.addAll(updated)
+                // Update list only if it actually changed to prevent flickering
+                if (deviceList.size != updated.size || deviceList.zip(updated).any { it.first != it.second }) {
+                    deviceList.clear()
+                    deviceList.addAll(updated)
+                }
+                initialLoadComplete = true
                 Log.d("FirebaseTest", "Devices count: ${deviceList.size}")
             }
 
@@ -245,10 +256,17 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(
                                 devices = deviceList,
+                                initialLoadComplete = initialLoadComplete,
                                 onToggle = { device -> toggleDevice(device) },
                                 onToggleChannel = { device, index -> toggleChannel(device, index) },
                                 onIronOverdue = { device -> forceOffIron(device) },
-                                onDeviceClick = { device -> navController.navigate("device/${device.id}") }
+                                onDeviceClick = { device ->
+                                    if (device.id == "navigate_add_layout") {
+                                        navController.navigate("add_layout")
+                                    } else {
+                                        navController.navigate("device/${device.id}")
+                                    }
+                                }
                             )
                         }
                         composable("reports") {
@@ -257,7 +275,18 @@ class MainActivity : ComponentActivity() {
                         composable("floorplan") {
                             FloorPlanScreen(
                                 devices = deviceList,
-                                onDeviceClick = { device -> navController.navigate("device/${device.id}") }
+                                onDeviceClick = { device -> navController.navigate("device/${device.id}") },
+                                onAddLayout = { navController.navigate("add_layout") }
+                            )
+                        }
+                        composable("add_layout") {
+                            AddLayoutScreen(
+                                onLayoutAdded = { floor, layouts ->
+                                    dynamicFloors.add(floor)
+                                    dynamicLayouts[floor.id] = layouts
+                                    navController.popBackStack()
+                                },
+                                onBack = { navController.popBackStack() }
                             )
                         }
                         composable("alerts") { AlertsScreen(alerts = alertList) }
@@ -619,12 +648,13 @@ fun WelcomeScreen(onEnter: () -> Unit) {
 fun HomeScreen(
     devices: List<Device>,
     modifier: Modifier = Modifier,
+    initialLoadComplete: Boolean = true,
     onToggle: (Device) -> Unit,
     onToggleChannel: (Device, Int) -> Unit,
     onIronOverdue: (Device) -> Unit,
     onDeviceClick: (Device) -> Unit
 ) {
-    var activeFloor by remember { mutableStateOf(FLOOR_PLAN.first().id) }
+    var activeFloor by remember { mutableStateOf(dynamicFloors.first().id) }
     var activeRoom by remember { mutableStateOf("all") }
 
     // Reset room filter if it doesn't belong to the newly selected floor
@@ -633,7 +663,7 @@ fun HomeScreen(
         if (!valid) activeRoom = "all"
     }
 
-    val floor = findFloor(activeFloor) ?: FLOOR_PLAN.first()
+    val floor = findFloor(activeFloor) ?: dynamicFloors.first()
     val floorDevices = devices.filter { it.floorId == activeFloor }
     val visibleDevices = floorDevices.filter { activeRoom == "all" || it.roomId == activeRoom }
 
@@ -642,14 +672,23 @@ fun HomeScreen(
         // --- Floor tabs ---
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FLOOR_PLAN.forEach { f ->
-                FilterChip(
-                    selected = f.id == activeFloor,
-                    onClick = { activeFloor = f.id },
-                    label = { Text(f.label) }
-                )
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(dynamicFloors) { f ->
+                    FilterChip(
+                        selected = f.id == activeFloor,
+                        onClick = { activeFloor = f.id },
+                        label = { Text(f.label) }
+                    )
+                }
+            }
+            IconButton(onClick = { onDeviceClick(Device(id = "navigate_add_layout")) }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add Floor")
             }
         }
 
@@ -680,9 +719,16 @@ fun HomeScreen(
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         // --- Device list, grouped by room ---
-        if (devices.isEmpty()) {
+        if (!initialLoadComplete && devices.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Loading devices…")
+            }
+            return@Column
+        }
+
+        if (devices.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No devices found.")
             }
             return@Column
         }
@@ -759,8 +805,12 @@ fun RowScope.MetricChip(label: String, value: Int) {
    ========================================================================= */
 
 @Composable
-fun FloorPlanScreen(devices: List<Device>, onDeviceClick: (Device) -> Unit) {
-    var activeFloor by remember { mutableStateOf(FLOOR_PLAN.first().id) }
+fun FloorPlanScreen(
+    devices: List<Device>,
+    onDeviceClick: (Device) -> Unit,
+    onAddLayout: () -> Unit
+) {
+    var activeFloor by remember { mutableStateOf(dynamicFloors.first().id) }
     val layout = layoutForFloor(activeFloor)
     val floorDevices = devices.filter { it.floorId == activeFloor }
 
@@ -768,14 +818,18 @@ fun FloorPlanScreen(devices: List<Device>, onDeviceClick: (Device) -> Unit) {
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FLOOR_PLAN.forEach { f ->
+            dynamicFloors.forEach { f ->
                 FilterChip(
                     selected = f.id == activeFloor,
                     onClick = { activeFloor = f.id },
                     label = { Text(f.label) }
                 )
+            }
+            IconButton(onClick = onAddLayout) {
+                Icon(Icons.Filled.Add, contentDescription = "Add Layout")
             }
         }
 
@@ -1206,6 +1260,139 @@ fun CameraBody(device: Device, onToggle: () -> Unit) {
                     Text(label, style = MaterialTheme.typography.bodySmall)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun AddLayoutScreen(onLayoutAdded: (Floor, List<RoomLayout>) -> Unit, onBack: () -> Unit) {
+    var floorId by remember { mutableStateOf("floor${dynamicFloors.size + 1}") }
+    var floorLabel by remember { mutableStateOf("") }
+    val selectedCells = remember { mutableStateMapOf<Pair<Int, Int>, String>() }
+    var currentRoomType by remember { mutableStateOf("Living Room") }
+    var showTypePicker by remember { mutableStateOf(false) }
+
+    val roomTypes = listOf(
+        "Living Room", "Dining Room", "Bedroom", "Kitchen", "Balcony",
+        "Staircase", "Storage Room", "Office Room", "Bathroom", "Entrance"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") }
+            Text("Create Floor Plan", style = MaterialTheme.typography.headlineSmall)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = floorLabel,
+            onValueChange = { floorLabel = it },
+            label = { Text("Floor Name (e.g. 3rd Floor)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Design Grid", style = MaterialTheme.typography.titleMedium)
+        Text("Select cells to assign to the current room type.", style = MaterialTheme.typography.bodySmall)
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Room Type: ", fontWeight = FontWeight.Bold)
+            TextButton(onClick = { showTypePicker = true }) {
+                Text(currentRoomType)
+            }
+        }
+
+        if (showTypePicker) {
+            AlertDialog(
+                onDismissRequest = { showTypePicker = false },
+                title = { Text("Select Room Type") },
+                text = {
+                    Column {
+                        roomTypes.forEach { type ->
+                            TextButton(onClick = { currentRoomType = type; showTypePicker = false }) {
+                                Text(type)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        // Interactive Grid
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(GRID_COLS.toFloat() / GRID_ROWS.toFloat())
+                .background(Color.LightGray.copy(alpha = 0.2f))
+        ) {
+            val cellW = maxWidth / GRID_COLS
+            val cellH = maxHeight / GRID_ROWS
+
+            for (r in 0 until GRID_ROWS) {
+                for (c in 0 until GRID_COLS) {
+                    val isSelected = selectedCells.containsKey(c to r)
+                    val color = if (isSelected) {
+                        // Color based on room type
+                        val type = selectedCells[c to r] ?: ""
+                        Color(type.hashCode()).copy(alpha = 0.6f)
+                    } else Color.Transparent
+
+                    Box(
+                        modifier = Modifier
+                            .size(cellW, cellH)
+                            .offset(x = cellW * c, y = cellH * r)
+                            .background(color)
+                            .clickable {
+                                if (selectedCells[c to r] == currentRoomType) {
+                                    selectedCells.remove(c to r)
+                                } else {
+                                    selectedCells[c to r] = currentRoomType
+                                }
+                            }
+                    ) {
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            drawRect(Color.Gray, style = Stroke(width = 1f))
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = {
+                // Group cells into RoomLayouts
+                val rooms = mutableListOf<Room>()
+                val layouts = mutableListOf<RoomLayout>()
+                
+                val roomGroups = selectedCells.entries.groupBy({ it.value }, { it.key })
+                roomGroups.forEach { (type, cells) ->
+                    val minC = cells.minOf { it.first }
+                    val maxC = cells.maxOf { it.first }
+                    val minR = cells.minOf { it.second }
+                    val maxR = cells.maxOf { it.second }
+                    
+                    val roomId = type.lowercase().replace(" ", "_") + "_${floorId}"
+                    rooms.add(Room(roomId, type))
+                    layouts.add(RoomLayout(roomId, minC, minR, maxC - minC + 1, maxR - minR + 1))
+                }
+
+                if (floorLabel.isNotBlank()) {
+                    onLayoutAdded(Floor(floorId, floorLabel, rooms), layouts)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = floorLabel.isNotBlank() && selectedCells.isNotEmpty()
+        ) {
+            Text("Save Floor Plan")
         }
     }
 }

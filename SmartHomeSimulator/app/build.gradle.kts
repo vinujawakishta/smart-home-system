@@ -16,7 +16,7 @@ android {
         applicationId = "com.example.smarthomesimulator"
         minSdk = 24
         //noinspection EditedTargetSdkVersion
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
