@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Smart Home Simulator"
+rootProject.name = "Lumen Home"
 include(":app")
  

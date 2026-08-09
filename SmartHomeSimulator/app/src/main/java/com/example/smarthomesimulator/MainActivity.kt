@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,7 +35,17 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.ui.res.stringResource
+import com.example.smarthomesimulator.R
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -234,7 +248,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        if (currentRoute != "welcome") {
+                        if (currentRoute != "welcome" && currentRoute != "login") {
                             AppBottomBar(navController)
                         }
                     }
@@ -247,8 +261,17 @@ class MainActivity : ComponentActivity() {
                         composable("welcome") {
                             WelcomeScreen(
                                 onEnter = {
-                                    navController.navigate("home") {
+                                    navController.navigate("login") {
                                         popUpTo("welcome") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+                        composable("login") {
+                            LoginScreen(
+                                onLoginSuccess = {
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
                                     }
                                 }
                             )
@@ -623,8 +646,16 @@ fun WelcomeScreen(onEnter: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.lumen_app_icon),
+                contentDescription = "Lumen Home Icon",
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(RoundedCornerShape(24.dp))
+            )
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
-                "Smart Home System",
+                stringResource(R.string.app_name),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -639,6 +670,171 @@ fun WelcomeScreen(onEnter: () -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
             Button(onClick = onEnter) {
                 Text("Enter Dashboard")
+            }
+        }
+    }
+}
+
+@Composable
+fun LoginScreen(onLoginSuccess: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+
+    fun validateAndSubmit() {
+        emailError = null
+        passwordError = null
+
+        val emailTrimmed = email.trim()
+        if (emailTrimmed.isEmpty()) {
+            emailError = "Email is required"
+        } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(emailTrimmed).matches()) {
+            emailError = "Invalid email format"
+        }
+
+        if (password.isEmpty()) {
+            passwordError = "Password is required"
+        } else if (password.length < 6) {
+            passwordError = "Password must be at least 6 characters"
+        }
+
+        if (emailError == null && passwordError == null) {
+            onLoginSuccess()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.lumen_app_icon),
+                contentDescription = "Lumen Home Logo",
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+            )
+
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Text(
+                text = "Sign in to control and monitor your smart home",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Demo Account Credentials",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Email: admin@lumen.com\nPassword: password123",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = {
+                    email = it
+                    emailError = null
+                },
+                label = { Text("Email Address") },
+                placeholder = { Text("e.g. admin@lumen.com") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Email,
+                        contentDescription = "Email Icon"
+                    )
+                },
+                isError = emailError != null,
+                supportingText = {
+                    if (emailError != null) {
+                        Text(emailError!!, color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = {
+                    password = it
+                    passwordError = null
+                },
+                label = { Text("Password") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Lock,
+                        contentDescription = "Password Icon"
+                    )
+                },
+                trailingIcon = {
+                    val image = if (passwordVisible) {
+                        Icons.Filled.Visibility
+                    } else {
+                        Icons.Filled.VisibilityOff
+                    }
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(imageVector = image, contentDescription = "Toggle Password Visibility")
+                    }
+                },
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                isError = passwordError != null,
+                supportingText = {
+                    if (passwordError != null) {
+                        Text(passwordError!!, color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = { validateAndSubmit() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text("Sign In", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
