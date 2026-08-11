@@ -2,16 +2,16 @@ package com.example.smarthomesimulator.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Luxury Palette - "Midnight & Gold" / "Onyx & Emerald"
-val LuxuryOnyx = Color(0xFF0A0E14)      // Deep Background
-val LuxuryCharcoal = Color(0xFF161C24)  // Card Surface
-val LuxuryGold = Color(0xFFD4AF37)      // Primary Accent
-val LuxuryGoldVariant = Color(0xFFB8860B)
-val LuxuryEmerald = Color(0xFF00A86B)   // Success / Active State
-val LuxuryGrey = Color(0xFF919EAB)      // Muted text
-val LuxuryOffWhite = Color(0xFFF4F6F8)  // Primary text in dark mode
+// Luxury Palette - "Modern Noir & Champagne Gold"
+val LuxuryOnyx = Color(0xFF0F1115)      // Deeper, more modern background
+val LuxuryCharcoal = Color(0xFF1C222B)  // Card Surface
+val LuxuryGold = Color(0xFFEBC351)      // Brighter, more "Champagne" gold
+val LuxuryGoldVariant = Color(0xFFC5A02D)
+val LuxuryEmerald = Color(0xFF34D399)   // Modern Emerald/Teal
+val LuxuryGrey = Color(0xFF94A3B8)      // Slate Grey for muted text
+val LuxuryOffWhite = Color(0xFFF8FAFC)  // Crisp white for dark mode
 
 // Light Luxury Palette
-val LuxuryLightBg = Color(0xFFF9FAFB)
+val LuxuryLightBg = Color(0xFFF1F5F9)
 val LuxuryLightSurface = Color(0xFFFFFFFF)
-val LuxuryLightAccent = Color(0xFF2C3E50) // Deep Navy
+val LuxuryLightAccent = Color(0xFF0F172A) // Slate 900

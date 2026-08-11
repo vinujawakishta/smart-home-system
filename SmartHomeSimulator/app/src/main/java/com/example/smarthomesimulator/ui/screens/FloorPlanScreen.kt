@@ -67,9 +67,10 @@ fun FloorPlanScreen(
                 }
                 IconButton(
                     onClick = onAddLayout,
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFFEBC351)),
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
                 ) {
-                    Icon(Icons.Filled.Add, "Add Layout", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.Add, "Add Layout", tint = Color.Black)
                 }
             }
         }
@@ -120,8 +121,8 @@ fun FloorPlanScreen(
             horizontalArrangement = Arrangement.spacedBy(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LuxuryLegendDot(Color(0xFF00A86B), "ONLINE")
-            LuxuryLegendDot(Color(0xFFFF4842), "OFFLINE")
+            LuxuryLegendDot(MaterialTheme.colorScheme.secondary, "ONLINE")
+            LuxuryLegendDot(MaterialTheme.colorScheme.error, "OFFLINE")
             LuxuryLegendDot(MaterialTheme.colorScheme.primary, "SYSTEM")
         }
     }

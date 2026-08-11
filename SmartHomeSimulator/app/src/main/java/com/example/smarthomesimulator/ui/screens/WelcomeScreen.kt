@@ -57,8 +57,11 @@ fun WelcomeScreen(onEnter: () -> Unit) {
                 Image(
                     painter = painterResource(id = R.drawable.lumen_app_icon),
                     contentDescription = "Lumen Home Icon",
-                    modifier = Modifier.fillMaxSize().padding(12.dp),
-                    contentScale = ContentScale.Fit
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(20.dp)), // Added radius to the icon image itself
+                    contentScale = ContentScale.Crop
                 )
             }
             

@@ -34,58 +34,66 @@ fun DeviceCard(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .clickable { onDeviceClick() },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            // Clickable Header for details
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onDeviceClick() },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = device.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
                     Text(
                         text = device.type.uppercase(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        letterSpacing = 0.5.sp
                     )
                 }
                 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(state = device.state)
-                    IconButton(onClick = { showDeleteConfirm = true }) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Remove",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                StatusPill(state = device.state)
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Body with specific actions (not navigating)
-            Box(modifier = Modifier.fillMaxWidth()) {
+            // Body with specific actions
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 when (device.type) {
                     "iron" -> IronBody(device, onToggle, onIronOverdue)
                     "camera" -> CameraBody(device, onToggle)
                     "multiswitch" -> MultiSwitchBody(device, onToggleChannel)
                     else -> SimpleToggleBody(device, onToggle)
                 }
+            }
+            
+            // Subtle remove button
+            IconButton(
+                onClick = { showDeleteConfirm = true },
+                modifier = Modifier.align(Alignment.End).size(24.dp).padding(top = 8.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Delete,
+                    contentDescription = "Remove",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
@@ -142,18 +150,21 @@ fun StatusPill(state: String) {
 
 @Composable
 fun SimpleToggleBody(device: Device, onToggle: () -> Unit) {
+    val isOn = device.state == "on"
     Button(
         onClick = onToggle,
-        modifier = Modifier.fillMaxWidth().height(54.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (device.state == "on") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = if (device.state == "on") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-        )
+            containerColor = if (isOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            contentColor = if (isOn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = if (isOn) 4.dp else 0.dp)
     ) {
         Text(
-            if (device.state == "on") "Power Off" else "Power On",
-            style = MaterialTheme.typography.titleSmall
+            if (isOn) "ON" else "OFF",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -227,8 +238,8 @@ fun CameraBody(device: Device, onToggle: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .height(100.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
@@ -238,12 +249,12 @@ fun CameraBody(device: Device, onToggle: () -> Unit) {
                     animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "alpha"
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(Color.Red.copy(alpha = alpha)))
-                    Spacer(Modifier.width(10.dp))
-                    Text("SECURE LIVE FEED", color = Color.White, style = MaterialTheme.typography.labelLarge, letterSpacing = 2.sp)
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color.Red.copy(alpha = alpha)))
+                    Spacer(Modifier.width(8.dp))
+                    Text("LIVE", color = Color.White, style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
         SimpleToggleBody(device, onToggle)
     }
@@ -252,23 +263,28 @@ fun CameraBody(device: Device, onToggle: () -> Unit) {
 @Composable
 fun MultiSwitchBody(device: Device, onToggleChannel: (Int) -> Unit) {
     val channels = device.channels ?: listOf(false, false, false)
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         channels.forEachIndexed { index, active ->
-            val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+            val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             val contentColor = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
             
             Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(60.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(color)
                     .clickable { onToggleChannel(index) },
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Text("CH ${index + 1}", style = MaterialTheme.typography.labelSmall, color = contentColor.copy(alpha = 0.7f))
-                    Text(if (active) "ON" else "OFF", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = contentColor)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(if (active) "ON" else "OFF", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = contentColor)
                 }
             }
         }

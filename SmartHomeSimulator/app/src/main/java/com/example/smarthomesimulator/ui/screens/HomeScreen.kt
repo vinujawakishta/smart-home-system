@@ -1,9 +1,13 @@
 package com.example.smarthomesimulator.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,6 +36,7 @@ fun HomeScreen(
 
     var activeFloor by remember { mutableStateOf(dynamicFloors.firstOrNull()?.id ?: "") }
     var activeRoom by remember { mutableStateOf("all") }
+    var activeType by remember { mutableStateOf("all") }
     var showAddDeviceDialog by remember { mutableStateOf(false) }
     var floorToDelete by remember { mutableStateOf<String?>(null) }
 
@@ -50,16 +55,20 @@ fun HomeScreen(
 
     val floor = findFloor(activeFloor) ?: dynamicFloors.firstOrNull() ?: Floor("", "", emptyList())
     val floorDevices = devices.filter { it.floorId == activeFloor }
-    val visibleDevices = floorDevices.filter { activeRoom == "all" || it.roomId == activeRoom }
+    val visibleDevices = floorDevices.filter { 
+        (activeRoom == "all" || it.roomId == activeRoom) && 
+        (activeType == "all" || it.type == activeType)
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDeviceDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = CircleShape
+                containerColor = Color(0xFFEBC351), // Specific Luxury Gold for FAB
+                contentColor = Color.Black,
+                shape = RoundedCornerShape(20.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp)
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add Device")
             }
@@ -69,24 +78,26 @@ fun HomeScreen(
             .fillMaxSize()
             .padding(padding)) {
             
-            // Modern Header
+            // Compact Modern Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
-                        text = "Smart Dashboard",
-                        style = MaterialTheme.typography.displayMedium,
+                        text = "Lumen",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Manage your premium home environment",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Welcome Home",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.sp
                     )
                 }
                 
@@ -94,17 +105,23 @@ fun HomeScreen(
                     if (dynamicFloors.size > 1) {
                         IconButton(
                             onClick = { floorToDelete = activeFloor },
-                            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                         ) {
-                            Icon(Icons.Filled.DeleteSweep, "Delete Floor")
+                            Icon(Icons.Filled.DeleteSweep, "Delete Floor", modifier = Modifier.size(20.dp))
                         }
                     }
                     
-                    IconButton(
+                    Surface(
                         onClick = onAddLayout,
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Filled.Layers, "Add Floor")
+                        Icon(
+                            Icons.Filled.Layers, 
+                            "Add Floor", 
+                            modifier = Modifier.padding(8.dp).size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -132,37 +149,68 @@ fun HomeScreen(
                 }
             }
 
-            // Room Filter Chips
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item {
-                    FilterChip(
-                        selected = activeRoom == "all",
-                        onClick = { activeRoom = "all" },
-                        label = { Text("All Rooms") },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+            // Room & Type Filters
+            Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = activeRoom == "all",
+                            onClick = { activeRoom = "all" },
+                            label = { Text("All Rooms") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         )
-                    )
+                    }
+                    items(floor.rooms) { room ->
+                        FilterChip(
+                            selected = activeRoom == room.id,
+                            onClick = { activeRoom = room.id },
+                            label = { Text(room.label) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
                 }
-                items(floor.rooms) { room ->
-                    FilterChip(
-                        selected = activeRoom == room.id,
-                        onClick = { activeRoom = room.id },
-                        label = { Text(room.label) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = activeType == "all",
+                            onClick = { activeType = "all" },
+                            label = { Text("All Types") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary
+                            )
                         )
-                    )
+                    }
+                    items(dynamicDeviceTypes) { type ->
+                        FilterChip(
+                            selected = activeType == type,
+                            onClick = { activeType = type },
+                            label = { Text(type.replaceFirstChar { it.uppercase() }) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary
+                            )
+                        )
+                    }
                 }
             }
 
@@ -173,13 +221,15 @@ fun HomeScreen(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                LazyColumn(
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     if (visibleDevices.isEmpty()) {
-                        item {
+                        item(span = { GridItemSpan(2) }) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -187,7 +237,7 @@ fun HomeScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    "No devices in this area",
+                                    "No devices match your criteria",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -206,7 +256,7 @@ fun HomeScreen(
                         )
                     }
 
-                    item {
+                    item(span = { GridItemSpan(2) }) {
                         Spacer(modifier = Modifier.height(100.dp))
                     }
                 }

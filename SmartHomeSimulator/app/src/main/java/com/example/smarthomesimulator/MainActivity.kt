@@ -127,6 +127,11 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onEditDevice = { deviceId ->
                                     navController.navigate("device/$deviceId")
+                                },
+                                onLogout = {
+                                    navController.navigate("login") {
+                                        popUpTo(0) { inclusive = true }
+                                    }
                                 }
                             )
                         }
