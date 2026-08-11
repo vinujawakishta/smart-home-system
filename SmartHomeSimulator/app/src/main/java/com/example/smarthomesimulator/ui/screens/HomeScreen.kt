@@ -312,9 +312,9 @@ fun AddDeviceDialog(
 ) {
     var name by remember { mutableStateOf("") }
     var selectedRoom by remember { mutableStateOf(rooms.firstOrNull()?.id ?: "") }
-    var type by remember { mutableStateOf("light") }
-
-    val deviceTypes = listOf("light", "iron", "camera", "multiswitch", "fan", "ac")
+    var type by remember { mutableStateOf(dynamicDeviceTypes.firstOrNull() ?: "light") }
+    var newTypeInput by remember { mutableStateOf("") }
+    var showNewTypeInput by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -345,10 +345,42 @@ fun AddDeviceDialog(
                 }
 
                 Column {
-                    Text("Device Type", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Device Type", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = { showNewTypeInput = !showNewTypeInput }) {
+                            Text(if (showNewTypeInput) "Cancel" else "+ Add Type")
+                        }
+                    }
+                    
+                    if (showNewTypeInput) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = newTypeInput,
+                                onValueChange = { newTypeInput = it },
+                                label = { Text("New Type") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            IconButton(onClick = {
+                                if (newTypeInput.isNotBlank() && !dynamicDeviceTypes.contains(newTypeInput.lowercase())) {
+                                    dynamicDeviceTypes.add(newTypeInput.lowercase())
+                                    type = newTypeInput.lowercase()
+                                    newTypeInput = ""
+                                    showNewTypeInput = false
+                                }
+                            }) {
+                                Icon(Icons.Default.Add, "Add Type")
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(deviceTypes) { t ->
+                        items(dynamicDeviceTypes) { t ->
                             FilterChip(
                                 selected = type == t,
                                 onClick = { type = t },
@@ -370,7 +402,7 @@ fun AddDeviceDialog(
                             roomId = selectedRoom,
                             state = "off",
                             channels = if (type == "multiswitch") listOf(false, false, false) else null,
-                            maxOnDuration = if (type == "iron") 600 else null
+                            maxOnDuration = if (type == "iron") 10 else null
                         )
                         onAdd(newDevice)
                     }

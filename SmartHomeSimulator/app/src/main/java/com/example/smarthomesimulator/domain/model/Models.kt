@@ -29,7 +29,13 @@ data class DeviceEvent(
     val timestamp: Long = 0L
 )
 
-data class Room(val id: String, val label: String)
-data class Floor(val id: String, val label: String, val rooms: List<Room>)
+data class Room(val id: String, val label: String, val color: Long? = null)
+data class Floor(
+    val id: String,
+    val label: String,
+    val rooms: List<Room>,
+    val gridCols: Int = 6,
+    val gridRows: Int = 4
+)
 
 data class RoomLayout(val roomId: String, val colStart: Int, val rowStart: Int, val colSpan: Int, val rowSpan: Int)

@@ -1,11 +1,13 @@
 package com.example.smarthomesimulator.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
+import com.example.smarthomesimulator.domain.model.Device
 import com.example.smarthomesimulator.ui.viewmodel.DeviceDetailViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,6 +39,7 @@ fun DeviceDetailScreen(
     }
 
     val d = device!!
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -45,6 +49,11 @@ fun DeviceDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showEditDialog = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Device")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -105,6 +114,68 @@ fun DeviceDetailScreen(
             }
         }
     }
+
+    if (showEditDialog) {
+        EditDeviceDialog(
+            device = d,
+            onDismiss = { showEditDialog = false },
+            onUpdate = { updated ->
+                viewModel.updateDevice(updated)
+                showEditDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun EditDeviceDialog(
+    device: Device,
+    onDismiss: () -> Unit,
+    onUpdate: (Device) -> Unit
+) {
+    var name by remember { mutableStateOf(device.name) }
+    var type by remember { mutableStateOf(device.type) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Device") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Device Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Text("Device Type", style = MaterialTheme.typography.labelMedium)
+                Column {
+                    com.example.smarthomesimulator.domain.model.dynamicDeviceTypes.forEach { t ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { type = t }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = type == t, onClick = { type = t })
+                            Text(t.replaceFirstChar { it.uppercase() })
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onUpdate(device.copy(name = name, type = type)) }) {
+                Text("Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

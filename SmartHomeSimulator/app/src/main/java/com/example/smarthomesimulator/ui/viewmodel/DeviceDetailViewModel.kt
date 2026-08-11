@@ -53,4 +53,10 @@ class DeviceDetailViewModel @Inject constructor(
             repository.saveMaxDuration(deviceId, maxDuration)
         }
     }
+
+    fun updateDevice(device: Device) {
+        viewModelScope.launch {
+            repository.updateDevice(device)
+        }
+    }
 }

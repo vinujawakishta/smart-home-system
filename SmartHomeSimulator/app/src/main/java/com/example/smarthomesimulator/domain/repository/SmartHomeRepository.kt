@@ -18,4 +18,5 @@ interface SmartHomeRepository {
     
     suspend fun addDevice(device: Device)
     suspend fun removeDevice(deviceId: String)
+    suspend fun updateDevice(device: Device)
 }

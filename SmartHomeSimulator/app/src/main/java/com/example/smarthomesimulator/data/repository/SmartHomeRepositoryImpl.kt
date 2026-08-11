@@ -133,4 +133,8 @@ class SmartHomeRepositoryImpl @Inject constructor(
     override suspend fun removeDevice(deviceId: String) {
         devicesRef.child(deviceId).removeValue()
     }
+
+    override suspend fun updateDevice(device: Device) {
+        devicesRef.child(device.id).setValue(device)
+    }
 }

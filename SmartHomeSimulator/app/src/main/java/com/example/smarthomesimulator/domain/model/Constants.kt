@@ -6,20 +6,20 @@ import androidx.compose.runtime.mutableStateMapOf
 val FLOOR_PLAN = listOf(
     Floor(
         id = "floor1", label = "1st Floor", rooms = listOf(
-            Room("entrance", "Entrance"),
-            Room("living", "Living Room"),
-            Room("kitchen", "Kitchen"),
-            Room("bath1", "Bathroom"),
-            Room("stairs", "Staircase"),
+            Room("entrance", "Entrance", 0xFFBBDEFB),
+            Room("living", "Living Room", 0xFFC8E6C9),
+            Room("kitchen", "Kitchen", 0xFFFFE0B2),
+            Room("bath1", "Bathroom", 0xFFE1BEE7),
+            Room("stairs", "Staircase", 0xFFD7CCC8),
         )
     ),
     Floor(
         id = "floor2", label = "2nd Floor", rooms = listOf(
-            Room("master", "Master Bedroom"),
-            Room("bed2", "Bedroom 2"),
-            Room("study", "Study Room"),
-            Room("bath2", "Bathroom"),
-            Room("balcony", "Balcony"),
+            Room("master", "Master Bedroom", 0xFFFFE0B2),
+            Room("bed2", "Bedroom 2", 0xFFBBDEFB),
+            Room("study", "Study Room", 0xFFC8E6C9),
+            Room("bath2", "Bathroom", 0xFFE1BEE7),
+            Room("balcony", "Balcony", 0xFFB2EBF2),
         )
     ),
 )
@@ -50,6 +50,8 @@ val dynamicLayouts = mutableStateMapOf<String, List<RoomLayout>>().apply {
     put("floor1", FLOOR1_LAYOUT)
     put("floor2", FLOOR2_LAYOUT)
 }
+
+val dynamicDeviceTypes = mutableStateListOf("light", "iron", "camera", "multiswitch", "fan", "ac")
 
 fun findFloor(floorId: String) = dynamicFloors.find { it.id == floorId }
 

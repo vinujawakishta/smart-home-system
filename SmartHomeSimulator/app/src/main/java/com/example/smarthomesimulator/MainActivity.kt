@@ -102,8 +102,33 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() }
                             )
                         }
+                        composable("edit_layout/{floorId}") { backStackEntry ->
+                            val floorId = backStackEntry.arguments?.getString("floorId")
+                            AddLayoutScreen(
+                                floorToEditId = floorId,
+                                onLayoutAdded = { floor, layouts ->
+                                    val index = dynamicFloors.indexOfFirst { it.id == floor.id }
+                                    if (index != -1) {
+                                        dynamicFloors[index] = floor
+                                    }
+                                    dynamicLayouts[floor.id] = layouts
+                                    navController.popBackStack()
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
                         composable("alerts") {
                             AlertsScreen(viewModel = hiltViewModel())
+                        }
+                        composable("settings") {
+                            SettingsScreen(
+                                onEditFloor = { floorId ->
+                                    navController.navigate("edit_layout/$floorId")
+                                },
+                                onEditDevice = { deviceId ->
+                                    navController.navigate("device/$deviceId")
+                                }
+                            )
                         }
                         composable("device/{deviceId}") {
                             DeviceDetailScreen(

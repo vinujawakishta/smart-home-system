@@ -98,14 +98,18 @@ fun FloorPlanScreen(
                 .clip(RoundedCornerShape(32.dp))
                 .background(MaterialTheme.colorScheme.surface)
         ) {
+            val floor = findFloor(activeFloorId)
             val currentLayout = layoutForFloor(activeFloorId)
             val floorDevices = devices.filter { it.floorId == activeFloorId }
 
-            FloorCanvas(
-                layout = currentLayout,
-                devices = floorDevices,
-                onDeviceClick = onDeviceClick
-            )
+            if (floor != null) {
+                FloorCanvas(
+                    floor = floor,
+                    layout = currentLayout,
+                    devices = floorDevices,
+                    onDeviceClick = onDeviceClick
+                )
+            }
         }
 
         // Luxury Legend
@@ -157,6 +161,7 @@ fun FloorPlanScreen(
 
 @Composable
 fun FloorCanvas(
+    floor: Floor,
     layout: List<RoomLayout>,
     devices: List<Device>,
     onDeviceClick: (Device) -> Unit
@@ -169,19 +174,22 @@ fun FloorCanvas(
         val canvasWidth = constraints.maxWidth.toFloat()
         val canvasHeight = constraints.maxHeight.toFloat()
 
-        val cellW = canvasWidth / GRID_COLS
-        val cellH = canvasHeight / GRID_ROWS
+        val cellW = canvasWidth / floor.gridCols
+        val cellH = canvasHeight / floor.gridRows
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             // Draw Rooms
-            layout.forEach { room ->
-                val left = room.colStart * cellW
-                val top = room.rowStart * cellH
-                val width = room.colSpan * cellW
-                val height = room.rowSpan * cellH
+            layout.forEach { roomLayout ->
+                val room = floor.rooms.find { it.id == roomLayout.roomId }
+                val left = roomLayout.colStart * cellW
+                val top = roomLayout.rowStart * cellH
+                val width = roomLayout.colSpan * cellW
+                val height = roomLayout.rowSpan * cellH
+
+                val roomColor = room?.color?.let { Color(it) } ?: strokeColor.copy(alpha = 0.05f)
 
                 drawRect(
-                    color = strokeColor.copy(alpha = 0.05f),
+                    color = roomColor,
                     topLeft = Offset(left, top),
                     size = androidx.compose.ui.geometry.Size(width, height)
                 )
@@ -194,11 +202,11 @@ fun FloorCanvas(
 
                 // Room Label
                 drawContext.canvas.nativeCanvas.drawText(
-                    room.roomId.uppercase(),
+                    (room?.label ?: roomLayout.roomId).uppercase(),
                     left + 12.dp.toPx(),
                     top + labelSize + 8.dp.toPx(),
                     AndroidPaint().apply {
-                        color = AndroidColor.LTGRAY
+                        color = AndroidColor.BLACK // Use black for contrast on colored backgrounds
                         textSize = labelSize
                         isFakeBoldText = true
                         letterSpacing = 0.1f

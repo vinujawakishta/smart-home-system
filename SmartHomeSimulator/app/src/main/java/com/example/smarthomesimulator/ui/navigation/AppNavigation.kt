@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ val navTabs = listOf(
     NavTab("floorplan", "Floor Plan", Icons.Filled.Map),
     NavTab("reports", "Reports", Icons.AutoMirrored.Filled.List),
     NavTab("alerts", "Alerts", Icons.Filled.Warning),
+    NavTab("settings", "Settings", Icons.Filled.Settings),
 )
 
 @Composable
