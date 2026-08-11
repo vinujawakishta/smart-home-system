@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -37,7 +37,8 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        if (currentRoute != "welcome" && currentRoute != "login") {
+                        val routesWithoutBottomBar = listOf("welcome", "login", null)
+                        if (currentRoute !in routesWithoutBottomBar) {
                             AppBottomBar(navController)
                         }
                     }
@@ -104,10 +105,8 @@ class MainActivity : ComponentActivity() {
                         composable("alerts") {
                             AlertsScreen(viewModel = hiltViewModel())
                         }
-                        composable("device/{deviceId}") { backStackEntry ->
-                            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: ""
+                        composable("device/{deviceId}") {
                             DeviceDetailScreen(
-                                deviceId = deviceId,
                                 viewModel = hiltViewModel(),
                                 onBack = { navController.popBackStack() }
                             )

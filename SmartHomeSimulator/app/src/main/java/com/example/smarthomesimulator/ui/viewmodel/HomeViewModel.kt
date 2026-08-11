@@ -29,9 +29,7 @@ class HomeViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             _devices.collect {
-                if (it.isNotEmpty()) {
-                    _initialLoadComplete.value = true
-                }
+                _initialLoadComplete.value = true
             }
         }
     }

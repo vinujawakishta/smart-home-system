@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +34,15 @@ fun FloorPlanScreen(
     onAddLayout: () -> Unit
 ) {
     val devices by viewModel.devices.collectAsState()
-    var activeFloorId by remember { mutableStateOf(dynamicFloors.first().id) }
+    var activeFloorId by remember { mutableStateOf(dynamicFloors.firstOrNull()?.id ?: "") }
+    var floorToDelete by remember { mutableStateOf<String?>(null) }
+
+    // Ensure we have an active floor if floors were added/removed
+    LaunchedEffect(dynamicFloors.size) {
+        if (activeFloorId.isEmpty() && dynamicFloors.isNotEmpty()) {
+            activeFloorId = dynamicFloors.first().id
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(
@@ -47,15 +56,25 @@ fun FloorPlanScreen(
                 Text("Home Layout", style = MaterialTheme.typography.displayMedium)
                 Text("Visual room mapping", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(
-                onClick = onAddLayout,
-                colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Icon(Icons.Filled.Add, "Add Layout", tint = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (dynamicFloors.size > 1) {
+                    IconButton(
+                        onClick = { floorToDelete = activeFloorId },
+                        colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Filled.DeleteSweep, "Delete Floor")
+                    }
+                }
+                IconButton(
+                    onClick = onAddLayout,
+                    colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Icon(Icons.Filled.Add, "Add Layout", tint = MaterialTheme.colorScheme.primary)
+                }
             }
         }
 
-        ScrollableTabRow(
+        PrimaryScrollableTabRow(
             selectedTabIndex = dynamicFloors.indexOfFirst { it.id == activeFloorId }.coerceAtLeast(0),
             edgePadding = 16.dp,
             containerColor = Color.Transparent,
@@ -101,6 +120,38 @@ fun FloorPlanScreen(
             LuxuryLegendDot(Color(0xFFFF4842), "OFFLINE")
             LuxuryLegendDot(MaterialTheme.colorScheme.primary, "SYSTEM")
         }
+    }
+
+    if (floorToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { floorToDelete = null },
+            title = { Text("Delete Floor") },
+            text = { Text("Are you sure you want to delete this floor and all its room mappings?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = floorToDelete!!
+                        val nextIndex = dynamicFloors.indexOfFirst { it.id == id }
+                        val newActive = if (nextIndex <= 0) {
+                            if (dynamicFloors.size > 1) dynamicFloors[1].id else ""
+                        } else {
+                            dynamicFloors[0].id
+                        }
+                        activeFloorId = newActive
+                        dynamicFloors.removeIf { it.id == id }
+                        dynamicLayouts.remove(id)
+                        floorToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { floorToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

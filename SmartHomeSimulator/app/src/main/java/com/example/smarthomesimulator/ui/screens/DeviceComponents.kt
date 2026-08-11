@@ -34,18 +34,18 @@ fun DeviceCard(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onDeviceClick() },
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            // Clickable Header for details
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onDeviceClick() },
                 verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -78,6 +78,7 @@ fun DeviceCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // Body with specific actions (not navigating)
             Box(modifier = Modifier.fillMaxWidth()) {
                 when (device.type) {
                     "iron" -> IronBody(device, onToggle, onIronOverdue)

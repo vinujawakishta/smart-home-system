@@ -22,12 +22,11 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceDetailScreen(
-    deviceId: String,
     viewModel: DeviceDetailViewModel,
     onBack: () -> Unit
 ) {
-    val device by viewModel.getDevice(deviceId).collectAsState()
-    val alerts by viewModel.getAlertsForDevice(deviceId).collectAsState()
+    val device by viewModel.device.collectAsState()
+    val alerts by viewModel.alerts.collectAsState()
 
     if (device == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

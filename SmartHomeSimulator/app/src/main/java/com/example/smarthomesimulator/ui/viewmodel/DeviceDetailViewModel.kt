@@ -1,5 +1,6 @@
 package com.example.smarthomesimulator.ui.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smarthomesimulator.domain.model.Alert
@@ -15,14 +16,17 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DeviceDetailViewModel @Inject constructor(
-    private val repository: SmartHomeRepository
+    private val repository: SmartHomeRepository,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    fun getDevice(deviceId: String): StateFlow<Device?> = repository.getDevices()
+    private val deviceId: String = savedStateHandle.get<String>("deviceId") ?: ""
+
+    val device: StateFlow<Device?> = repository.getDevices()
         .map { devices -> devices.find { it.id == deviceId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    fun getAlertsForDevice(deviceId: String): StateFlow<List<Alert>> = repository.getAlerts()
+    val alerts: StateFlow<List<Alert>> = repository.getAlerts()
         .map { alerts -> alerts.filter { it.deviceId == deviceId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
