@@ -44,6 +44,17 @@ const FLOOR_PLAN = [
 			{ id: 'balcony', label: 'Balcony' },
 		],
 	},
+	{
+		id: 'floor3',
+		label: '3rd Floor',
+		rooms: [
+			{ id: 'guest', label: 'Guest Room' },
+			{ id: 'office', label: 'Home Office' },
+			{ id: 'laundry', label: 'Laundry' },
+			{ id: 'terrace', label: 'Terrace' },
+			{ id: 'utility', label: 'Utility Room' },
+		],
+	},
 ];
 
 // Used only to seed Firebase the first time the database is empty, and as
@@ -73,6 +84,16 @@ const DEVICE_SEED = [
 	{ id: 'switch-bath2-2g', type: 'multiswitch', name: 'Bath2 2-Gang', floorId: 'floor2', roomId: 'bath2', state: 'off', details: ['Light and exhaust'], channels: [false, true] },
 	{ id: 'light-balcony', type: 'bulb', name: 'Balcony Light', floorId: 'floor2', roomId: 'balcony', state: 'off', details: ['Outdoor mode'] },
 	{ id: 'cam-balcony', type: 'camera', name: 'Balcony Camera', floorId: 'floor2', roomId: 'balcony', state: 'error', details: ['Lens obstruction test'] },
+	{ id: 'light-guest', type: 'bulb', name: 'Guest Room Light', floorId: 'floor3', roomId: 'guest', state: 'off', details: ['Warm white preset'] },
+	{ id: 'outlet-guest', type: 'outlet', name: 'Guest Charging Outlet', floorId: 'floor3', roomId: 'guest', state: 'on', details: ['Bedside charging point'] },
+	{ id: 'switch-office-3g', type: 'multiswitch', name: 'Office 3-Gang Panel', floorId: 'floor3', roomId: 'office', state: 'on', details: ['Desk lamp, monitor, AC'], channels: [true, true, false] },
+	{ id: 'cam-office', type: 'camera', name: 'Office Camera', floorId: 'floor3', roomId: 'office', state: 'on', details: ['Workstation view'] },
+	{ id: 'outlet-office-printer', type: 'outlet', name: 'Office Printer Outlet', floorId: 'floor3', roomId: 'office', state: 'off', details: ['Printer standby'] },
+	{ id: 'outlet-washer', type: 'outlet', name: 'Laundry Washer Outlet', floorId: 'floor3', roomId: 'laundry', state: 'on', details: ['Connected to washer'] },
+	{ id: 'switch-laundry-2g', type: 'multiswitch', name: 'Laundry 2-Gang', floorId: 'floor3', roomId: 'laundry', state: 'off', details: ['Light and exhaust'], channels: [false, false] },
+	{ id: 'light-terrace', type: 'bulb', name: 'Terrace Light', floorId: 'floor3', roomId: 'terrace', state: 'on', details: ['Night mode'] },
+	{ id: 'cam-terrace', type: 'camera', name: 'Terrace Camera', floorId: 'floor3', roomId: 'terrace', state: 'disconnected', details: ['Weatherproof housing'] },
+	{ id: 'outlet-utility-pump', type: 'outlet', name: 'Utility Pump Outlet', floorId: 'floor3', roomId: 'utility', state: 'off', details: ['Water pump standby'] },
 ];
 
 const elements = {
@@ -95,7 +116,7 @@ const stateLabels = {
 const state = {
 	activeFloor: 'floor1',
 	activeRoom: 'all',
-	devices: [], // populated live from Firebase — see listener at bottom of file
+	deviceOverlay: new Map(), // live state from Firebase, merged onto the fixed plan below
 };
 
 function findFloor(floorId) {
@@ -119,8 +140,15 @@ function badgeForType(type) {
 	return map[type] || 'D';
 }
 
+function plannedDevices() {
+	return DEVICE_SEED.map((device) => {
+		const live = state.deviceOverlay.get(device.id);
+		return live ? { ...device, ...live, id: device.id } : structuredClone(device);
+	});
+}
+
 function visibleDevices() {
-	return state.devices.filter((device) => {
+	return plannedDevices().filter((device) => {
 		const floorMatch = device.floorId === state.activeFloor;
 		const roomMatch = state.activeRoom === 'all' || device.roomId === state.activeRoom;
 		return floorMatch && roomMatch;
@@ -139,7 +167,7 @@ function buildRoomGroups(devices) {
 }
 
 function summaryItems() {
-	const currentFloorDevices = state.devices.filter((item) => item.floorId === state.activeFloor);
+	const currentFloorDevices = plannedDevices().filter((item) => item.floorId === state.activeFloor);
 	const currentVisible = visibleDevices();
 	const powered = currentFloorDevices.filter((item) => item.state === 'on').length;
 	const alerts = currentFloorDevices.filter((item) => item.state === 'error' || item.state === 'disconnected').length;
@@ -282,7 +310,7 @@ function renderRooms() {
    ========================================================================= */
 
 function updateDevice(deviceId, updater) {
-	const current = state.devices.find((device) => device.id === deviceId);
+	const current = plannedDevices().find((device) => device.id === deviceId);
 	if (!current) {
 		return;
 	}
@@ -318,7 +346,7 @@ function handleDeviceAction(button) {
 	if (action === 'reset') {
 		updateDevice(deviceId, () => {
 			const original = DEVICE_SEED.find((item) => item.id === deviceId);
-			return original ? structuredClone(original) : state.devices.find((item) => item.id === deviceId);
+			return original ? structuredClone(original) : plannedDevices().find((item) => item.id === deviceId);
 		});
 		return;
 	}
@@ -408,6 +436,8 @@ onValue(
 // another browser tab, or later the mobile app.
 onValue(devicesRef, (snapshot) => {
 	const val = snapshot.val() || {};
-	state.devices = Object.entries(val).map(([id, data]) => ({ id, ...data }));
+	Object.entries(val).forEach(([id, data]) => {
+		state.deviceOverlay.set(id, { id, ...data });
+	});
 	renderAll();
 });
