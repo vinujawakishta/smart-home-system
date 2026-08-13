@@ -89,6 +89,13 @@ fun DeviceDetailScreen(
                 )
             }
 
+            if (d.type == "light") {
+                SchedulingCard(
+                    device = d,
+                    onSave = { updated -> viewModel.updateDevice(updated) }
+                )
+            }
+
             // Alerts History
             Column {
                 Text(
@@ -252,5 +259,127 @@ fun DetailAlertItem(message: String, timestamp: Long) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
         }
+    }
+}
+
+@Composable
+fun SchedulingCard(device: Device, onSave: (Device) -> Unit) {
+    var isEnabled by remember(device.scheduled) { mutableStateOf(device.scheduled) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Automation Schedule",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Automatic power cycles",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = isEnabled,
+                    onCheckedChange = { 
+                        isEnabled = it
+                        onSave(device.copy(scheduled = it)) 
+                    }
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScheduleTimeField(
+                    label = "TURN ON",
+                    time = device.scheduleOn ?: "00:00",
+                    modifier = Modifier.weight(1f),
+                    onTimeSelected = { onSave(device.copy(scheduleOn = it)) }
+                )
+                ScheduleTimeField(
+                    label = "TURN OFF",
+                    time = device.scheduleOff ?: "00:00",
+                    modifier = Modifier.weight(1f),
+                    onTimeSelected = { onSave(device.copy(scheduleOff = it)) }
+                )
+            }
+
+            if (isEnabled) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Device will automatically turn ON at ${device.scheduleOn ?: "00:00"} and OFF at ${device.scheduleOff ?: "00:00"} daily.",
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScheduleTimeField(label: String, time: String, modifier: Modifier = Modifier, onTimeSelected: (String) -> Unit) {
+    var showDialog by remember { mutableStateOf(false) }
+    
+    Column(modifier = modifier) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        Surface(
+            onClick = { showDialog = true },
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                time,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+
+    if (showDialog) {
+        val initialHour = time.split(":")[0].toIntOrNull() ?: 0
+        val initialMinute = time.split(":")[1].toIntOrNull() ?: 0
+        val timeState = rememberTimePickerState(initialHour, initialMinute, is24Hour = true)
+
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val formatted = String.format(Locale.getDefault(), "%02d:%02d", timeState.hour, timeState.minute)
+                    onTimeSelected(formatted)
+                    showDialog = false
+                }) { Text("Confirm") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text("Cancel") }
+            },
+            title = { Text("Select Time") },
+            text = {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TimePicker(state = timeState)
+                }
+            }
+        )
     }
 }

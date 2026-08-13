@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("settings") {
                             SettingsScreen(
+                                viewModel = hiltViewModel(),
                                 onEditFloor = { floorId ->
                                     navController.navigate("edit_layout/$floorId")
                                 },

@@ -10,7 +10,10 @@ data class Device(
     val details: List<String> = emptyList(),
     val channels: List<Boolean>? = null,
     val maxOnDuration: Long? = null, // seconds
-    val turnedOnAt: Long? = null     // epoch millis
+    val turnedOnAt: Long? = null,     // epoch millis
+    val scheduleOn: String? = null,  // "HH:mm"
+    val scheduleOff: String? = null, // "HH:mm"
+    val scheduled: Boolean = false
 )
 
 data class Alert(

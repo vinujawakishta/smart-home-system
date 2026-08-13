@@ -12,19 +12,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarthomesimulator.domain.model.Device
 import com.example.smarthomesimulator.domain.model.dynamicFloors
+import com.example.smarthomesimulator.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    viewModel: SettingsViewModel,
     onEditFloor: (String) -> Unit,
     onEditDevice: (String) -> Unit,
     onLogout: () -> Unit
 ) {
     var userName by remember { mutableStateOf("User") }
     var userEmail by remember { mutableStateOf("user@example.com") }
+    val usageStats by viewModel.deviceUsageStats.collectAsState()
+    val devices by viewModel.devices.collectAsState()
 
     Scaffold(
         topBar = {
@@ -100,6 +106,9 @@ fun SettingsScreen(
                 }
             }
 
+            // Usage Insights Section
+            UsageInsightsCard(usageStats, devices)
+
             // Edit Floors Section
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -150,5 +159,73 @@ fun SettingsScreen(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
+    }
+}
+
+@Composable
+fun UsageInsightsCard(usageStats: Map<String, Long>, devices: List<Device>) {
+    val topUsage = usageStats.entries
+        .mapNotNull { entry ->
+            val device = devices.find { it.id == entry.key }
+            if (device != null) device to entry.value else null
+        }
+        .sortedByDescending { it.second }
+        .take(3)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "DEVICE USAGE INSIGHTS", 
+                style = MaterialTheme.typography.labelSmall, 
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
+            )
+            
+            if (topUsage.isEmpty()) {
+                Text(
+                    "No usage data available yet. Start using your devices to see insights.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                val maxUsage = topUsage.first().second
+                topUsage.forEach { (device, duration) ->
+                    UsageBar(device.name, duration, maxUsage)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UsageBar(name: String, duration: Long, maxUsage: Long) {
+    val hours = duration / 3600000
+    val minutes = (duration % 3600000) / 60000
+    val timeText = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+    val progress = if (maxUsage > 0) duration.toFloat() / maxUsage.toFloat() else 0f
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(timeText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     }
 }
