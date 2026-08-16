@@ -1,0 +1,220 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1.8cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{parskip}
+
+\definecolor{heading}{HTML}{1F4E78}
+\definecolor{lightblue}{HTML}{E8EEF5}
+\definecolor{note}{HTML}{F4F6F9}
+\hypersetup{colorlinks=true,linkcolor=heading,urlcolor=heading}
+\titleformat{\section}{\Large\bfseries\color{heading}}{\thesection.}{0.45em}{}
+\titleformat{\subsection}{\large\bfseries\color{heading}}{\thesubsection}{0.45em}{}
+\setlist[itemize]{leftmargin=1.35em,itemsep=2pt,topsep=3pt}
+\renewcommand{\arraystretch}{1.22}
+\pagestyle{fancy}
+\fancyhf{}
+\lfoot{Smart Home Monitoring \& Control System}
+\rfoot{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0.3pt}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.8cm}
+{\Large\color{heading}SCS 3311: Mobile Application Design \& Development\par}
+\vspace{1.2cm}
+{\Huge\bfseries Smart Home Monitoring\\[0.2cm]and Control System\par}
+\vspace{0.45cm}
+{\Large Technical Report\par}
+\vspace{1.2cm}
+\rule{0.8\textwidth}{0.6pt}\par
+\vspace{0.7cm}
+{\large\textit{Architecture, synchronization mechanism, customizable floor representation and simulator operations}\par}
+\vfill
+\begin{tabular}{rl}
+\textbf{Team Members:} & Kulakshi Thathsarani \\
+& Warusha Shamalka \\
+& Vinuja Wakishta \\
+\end{tabular}
+\vfill
+\rule{0.8\textwidth}{0.6pt}\par
+\vspace{0.4cm}
+{\large \today\par}
+\end{titlepage}
+
+\section{System Overview}
+The Smart Home Monitoring and Control System is a cloud-connected prototype for monitoring and operating household devices from an Android mobile application and a companion web-based hardware simulator. The system supports lights, electrical outlets, cameras, multi-switch panels and a safety-critical iron outlet. Devices display one of four common states: \texttt{ON}, \texttt{OFF}, \texttt{ERROR} or \texttt{DISCONNECTED}.
+
+The central design goal is to keep the mobile application, simulator and cloud data consistent. A user can operate a device from either client and see the result reflected in the other client without manually refreshing the screen. The simulator therefore acts as a realistic stand-in for physical hardware while the Android application provides a resident-facing monitoring and control interface.
+
+\subsection{Main Design Choices}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{3.3cm}X}
+\toprule
+Area & Choice and reason \\
+\midrule
+Shared state & Firebase Realtime Database is used as a hosted, low-latency source of truth. It avoids implementing a separate REST/WebSocket server for a small IoT prototype. \\
+Mobile client & Kotlin with Jetpack Compose provides reactive state-driven screens and simple navigation between dashboard, floor plan, reports, alerts and device details. \\
+Hardware simulator & HTML, CSS and JavaScript provide a lightweight browser console that can simulate device changes from any computer. \\
+Floor model & Floors and rooms are defined as configurable layout data. The representation scales to different house plans rather than enforcing one fixed grid size. \\
+Safety and audit & Timed-device handling, alerts and device events make safety behaviour visible and support basic usage reporting. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Scope}
+This report explains the implemented architecture, the synchronization mechanism, the customizable floor representation and the operations supported by the simulator. It also justifies the selected mechanisms and identifies the main production considerations.
+
+\newpage
+\section{Architecture and Data Model}
+The architecture is cloud-mediated and consists of two independent clients. The Android app and the browser simulator do not communicate directly; each reads from and writes to Firebase Realtime Database. This separation keeps the clients loosely coupled: the simulator can be changed or extended without requiring changes to the mobile application interface.
+
+\subsection{Logical Architecture}
+\begin{center}
+\begin{tabular}{p{0.28\textwidth} c p{0.28\textwidth}}
+\centering\cellcolor{lightblue}\textbf{Android Application}\newline\small Dashboard, floor-plan view, device details, reports and alerts
+& $\Longleftrightarrow$ &
+\centering\cellcolor{lightblue}\textbf{Web Hardware Simulator}\newline\small Device cards, room filters and simulated hardware controls \\
+& \multicolumn{1}{c}{} & \\
+\multicolumn{3}{c}{\Large$\Updownarrow$} \\
+\multicolumn{3}{c}{\cellcolor{lightblue}\textbf{Firebase Realtime Database:} \texttt{/devices}, \texttt{/alerts}, \texttt{/deviceEvents}} \\
+\end{tabular}
+\end{center}
+
+Firebase is the canonical state store. A client action produces a database write, and Firebase notifies all subscribed clients. Each client then rebuilds its local UI state from the received snapshot. This means the originating client and the other client follow the same update path.
+
+\subsection{Data Contract}
+Every device is stored under a unique key in \texttt{/devices}. The common fields are \texttt{id}, \texttt{type}, \texttt{name}, \texttt{floorId}, \texttt{roomId}, \texttt{state} and descriptive details. A multi-switch also contains a Boolean \texttt{channels} list. Timed appliances can hold \texttt{maxOnDuration} and \texttt{turnedOnAt} fields.
+
+\begin{tabularx}{\textwidth}{>{\ttfamily}p{3.1cm}X}
+\toprule
+Node & Purpose \\
+\midrule
+/devices/\{deviceId\} & Live device status, room assignment, channel states and optional timing values. \\
+/alerts/\{alertId\} & Safety, error or disconnection messages with device information and time. \\
+/deviceEvents/\{eventId\} & Chronological state changes used by the Reports screen to estimate device ON time. \\
+\bottomrule
+\end{tabularx}
+
+This shared contract is important because both clients must interpret the same fields in the same way. It also allows future components, such as a backend safety worker, to use the same records without modifying the client interfaces.
+
+\subsection{Why This Architecture Was Chosen}
+The architecture is suitable for the project because it is simple enough to demonstrate but follows a realistic IoT pattern: clients are decoupled from each other and communicate through a cloud service. Firebase provides real-time subscriptions, offline-capable client SDKs and a structured JSON data model. For this scale of system, these benefits outweigh the complexity of implementing and hosting a custom middleware service.
+
+\newpage
+\section{Synchronization Mechanism}
+\subsection{Event-Driven Bidirectional Synchronization}
+The system uses Firebase Realtime Database listeners for synchronization. The browser simulator listens to \texttt{/devices} using \texttt{onValue}. The Android application registers \texttt{ValueEventListener}s for \texttt{/devices}, \texttt{/alerts} and \texttt{/deviceEvents}. A listener receives the current snapshot at startup and receives a new snapshot whenever the corresponding database node changes.
+
+When a user performs an action, the client calculates the requested device change and writes it to Firebase. The user interface does not rely on an unconfirmed local value as its final state. Instead, Firebase distributes the updated snapshot and each client renders from that shared result. In the web simulator this updates the local device array and calls the rendering functions; in the Android app it updates Compose state, which recomposes the relevant screen.
+
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.8cm}p{5.0cm}X}
+\toprule
+Step & Action & Result \\
+\midrule
+1 & User toggles a device or one channel of a multi-switch. & The client derives the requested state from the current record. \\
+2 & Client writes the changed device data to Firebase. & Firebase persists the canonical shared value. \\
+3 & Firebase triggers subscribed listeners. & Every open client, including the originating one, receives the change. \\
+4 & Client state is replaced from the snapshot. & Device cards, floor markers, metrics and device details display the same state. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Synchronization Behaviour}
+The web simulator uses a full replacement write for a complete device update. This is useful for reset and multi-channel operations because the device record remains internally consistent. The Android application uses field-level writes for interactions such as changing a state, channel list or timing value. Both approaches notify the same database listeners, so they remain interoperable.
+
+The simulator includes a one-time seed mechanism. It writes a predefined device set only if \texttt{/devices} is empty. A Reset action restores a selected device to its known seed configuration. This makes presentations repeatable without overwriting an existing database during normal startup.
+
+\subsection{Justification and Limitations}
+Realtime listeners were selected instead of polling because device controls require fast visible feedback. Polling would introduce avoidable delay, extra database reads and a less convincing smart-home experience. The listener approach also naturally supports external updates, including a future hardware gateway or backend worker.
+
+The current prototype uses last-write-wins semantics at the written location. This is reasonable for occasional user operations during a demonstration. In a production system, conflicting changes and safety controls should additionally use Firebase security rules, authenticated users, validation and transactions or server-side commands where required.
+
+\newpage
+\section{Customizable Floor Representation}
+\subsection{Configurable Rather Than Fixed-Size}
+The floor representation is customizable. It is not restricted to a globally fixed number of rows, columns or a single hard-coded house shape. A floor is described using data: a floor identifier and label, a set of rooms, and a layout definition for each room. Each room layout contains the room identifier plus its position and dimensions in the selected floor's coordinate space.
+
+Consequently, a floor plan can be adapted by changing its configuration: rooms may be added, removed, moved or resized, and different floors may use different logical dimensions. The renderer calculates the visual size of a room from the available Canvas width and height. Device markers are placed within the room associated with each device's \texttt{floorId} and \texttt{roomId}.
+
+\begin{tabularx}{\textwidth}{>{\bfseries}p{3.3cm}X}
+\toprule
+Element & Representation \\
+\midrule
+Floor & Identifier, human-readable label and a collection of rooms. \\
+Room & Identifier and label used for filtering, device assignment and display. \\
+Room layout & Position and span/size values used to draw a room rectangle in the floor coordinate system. \\
+Device marker & A small status-coloured marker placed inside its assigned room; selecting it opens device details. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Illustrative Layout Process}
+\begin{enumerate}[leftmargin=1.5em,itemsep=3pt]
+\item Define a floor and its rooms in the floor-plan configuration.
+\item Assign each room a position and width/height within that floor's coordinate space.
+\item Draw the configured room rectangles relative to the available screen size.
+\item Filter devices by their floor and room identifiers, then draw their markers in the matching room.
+\end{enumerate}
+
+\subsection{Why a Customizable Layout Was Chosen}
+Different homes have different room counts, proportions and arrangements. A fixed grid would require source-code changes whenever the demonstrated house plan changes. A data-driven representation reduces this limitation: a future implementation can load floor definitions from Firebase or a configuration file, allowing new plans to be added without altering the drawing logic.
+
+The design also fits mobile screens well. The logical coordinates are independent of pixels, so the same layout can be scaled for a phone, tablet or browser. The representation remains intentionally abstract: it shows room membership and device status, not surveyed building dimensions. This keeps the UI clear and avoids the unnecessary complexity of exact architectural drawings.
+
+\subsection{Relationship to the Web Simulator}
+The browser simulator uses the same floor and room identifiers, but presents them as floor and room filters rather than a Canvas drawing. This is deliberate: the mobile app is optimized for spatial navigation, while the simulator is optimized for quick operational control and grouped device cards.
+
+\newpage
+\section{Simulator Operations and Device Behaviour}
+The web hardware simulator represents the physical devices of the smart home. It allows a demonstrator to generate realistic changes while the Android app shows the resident experience. The simulator first selects a floor, optionally filters to a room, groups visible devices by room and displays counts for active, visible and alert-state devices.
+
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.2cm}p{5.4cm}X}
+\toprule
+Operation & Simulator action & Shared effect \\
+\midrule
+Toggle & Changes a device from ON to OFF or from OFF to ON. & Both clients render the new operational state. \\
+Error & Sets the state to ERROR. & Simulates a device failure and presents an alert-state indicator. \\
+Disconnect & Sets the state to DISCONNECTED. & Simulates loss of network or device connectivity. \\
+Reset & Restores a device's predefined seed record. & Returns the selected device to a known demonstration state. \\
+Channel toggle & Changes an individual multi-switch channel. & Parent state is ON if any channel remains ON; otherwise it is OFF. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Specialized Device Profiles}
+The system does not treat every device as an identical binary switch. A multi-switch represents one physical gang panel with independently addressable channels. Cameras provide mock feed information and meaningful OFF, error and no-signal states. Outlets and bulbs expose standard power controls. These profiles make the simulator more representative of a real home than a collection of generic buttons.
+
+\subsection{Safety and Reporting}
+The iron outlet supports a maximum permitted ON duration. When it is switched on, the app records the activation time. While the mobile app is running, a countdown can perform a client-side safety fallback: it switches the device off and writes an alert after the configured duration. Device state changes are recorded in \texttt{/deviceEvents}; the Reports screen pairs ON/OFF events to estimate usage duration, and the Alerts screen displays safety messages.
+
+This mechanism was chosen to demonstrate an important IoT principle: control systems should address safety as well as convenience. The client-side cutoff is useful for the current prototype because it is visible and easy to demonstrate. However, a production guarantee requires a server-side scheduled worker or Cloud Function so the cutoff occurs even when the mobile application is closed.
+
+\newpage
+\section{Conclusion and Future Considerations}
+The Smart Home Monitoring and Control System uses a clear and appropriate architecture for a mobile-development mini-project. The Android application and web-based simulator exchange state through Firebase Realtime Database, and realtime listeners ensure that both clients update from the same canonical data. This produces bidirectional synchronization without polling or manual refresh.
+
+The floor plan is intentionally configurable rather than fixed-size. Floors, rooms and their layout dimensions are data-driven, allowing the system to support different home shapes and screen sizes. The abstract representation prioritizes understandable room context and device status over unnecessary architectural precision.
+
+The simulator supports practical device operations---power changes, faults, disconnections, resets and individual multi-switch channels---while alerts, timing and event history add realistic safety and reporting behaviour. Together, these choices provide a concise but credible IoT prototype.
+
+\subsection{Recommended Next Steps}
+\begin{itemize}
+\item Store editable floor configurations in Firebase so a new home plan can be created without releasing a new app version.
+\item Add Firebase Authentication and database security rules to restrict who can control devices.
+\item Move timed safety cutoffs to a scheduled backend function or worker for an always-on guarantee.
+\item Use transactions or server-side validation for commands that may be issued concurrently.
+\item Add a device-position editor if individual devices need more precise placement inside each configured room.
+\end{itemize}
+
+\vfill
+\noindent\colorbox{note}{\parbox{0.94\textwidth}{\small\textbf{Source basis.} This report is based on the project implementation in \texttt{WebSimulator/app.js} and \texttt{SmartHomeSimulator/app/src/main/java/com/example/smarthomesimulator/MainActivity.kt}.}}
+
+\end{document}
